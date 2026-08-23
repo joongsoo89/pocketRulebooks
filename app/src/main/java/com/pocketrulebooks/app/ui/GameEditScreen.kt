@@ -5,11 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -28,6 +26,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import com.pocketrulebooks.app.data.Game
 import com.pocketrulebooks.app.data.RuleSection
@@ -54,51 +53,70 @@ fun GameEditScreen(
     val t = stringsForLang(lang)
     var game by remember(initial.id) { mutableStateOf(initial) }
     var section by rememberSaveable { mutableStateOf(RuleSection.Overview) }
+    var bodyFocused by remember { mutableStateOf(false) }
     val hint = t.tabHint.getValue(section)
 
     Scaffold(
         containerColor = Paper,
         topBar = {
-            TopAppBar(
-                title = { Text(if (initial.title.isBlank()) t.add else t.edit) },
-                navigationIcon = { TextButton(onClick = onCancel) { Text("←") } },
-                actions = { LanguageBar(lang, onLang) },
-                colors = TopAppBarDefaults.topAppBarColors(containerColor = Paper, titleContentColor = Ink),
-            )
+            if (!bodyFocused) {
+                TopAppBar(
+                    title = { Text(if (initial.title.isBlank()) t.add else t.edit) },
+                    navigationIcon = { TextButton(onClick = onCancel) { Text("←") } },
+                    actions = { LanguageBar(lang, onLang) },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = Paper,
+                        titleContentColor = Ink,
+                    ),
+                )
+            }
         },
     ) { padding ->
         Column(
             Modifier
                 .fillMaxSize()
                 .padding(padding)
+                .imePadding()
                 .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(top = if (bodyFocused) 8.dp else 0.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Button(
-                    onClick = { game = game.copy(emoji = randomEmoji()) },
-                    colors = ButtonDefaults.buttonColors(containerColor = Cream, contentColor = Ink),
-                    shape = RoundedCornerShape(16.dp),
-                ) { Text(game.emoji) }
-                Field(
-                    label = t.title,
-                    value = game.title,
-                    hint = t.titleHint,
-                    modifier = Modifier.weight(1f),
-                    onChange = { game = game.copy(title = it) },
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                Field(t.players, game.players, t.playersHint, Modifier.weight(1f)) {
-                    game = game.copy(players = it)
+            if (!bodyFocused) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                ) {
+                    Button(
+                        onClick = { game = game.copy(emoji = randomEmoji()) },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Cream,
+                            contentColor = Ink,
+                        ),
+                        shape = RoundedCornerShape(16.dp),
+                    ) { Text(game.emoji) }
+                    Field(
+                        label = t.title,
+                        value = game.title,
+                        hint = t.titleHint,
+                        modifier = Modifier.weight(1f),
+                        onChange = { game = game.copy(title = it) },
+                    )
                 }
-                Field(t.playTime, game.playTime, t.playTimeHint, Modifier.weight(1f)) {
-                    game = game.copy(playTime = it)
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+                    Field(t.players, game.players, t.playersHint, Modifier.weight(1f)) {
+                        game = game.copy(players = it)
+                    }
+                    Field(t.playTime, game.playTime, t.playTimeHint, Modifier.weight(1f)) {
+                        game = game.copy(playTime = it)
+                    }
                 }
             }
+
             SectionTabBar(lang, section, onChange = { section = it })
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.Bottom) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Bottom,
+            ) {
                 Text(t.tabFull.getValue(section), color = Ink)
                 if (hint.isNotBlank()) Text("($hint)", color = Muted)
             }
@@ -107,12 +125,16 @@ fun GameEditScreen(
                 onValueChange = { game = game.withSection(section, it) },
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(280.dp),
+                    .weight(1f)
+                    .onFocusChanged { bodyFocused = it.isFocused },
                 placeholder = { Text(t.noContent) },
                 shape = RoundedCornerShape(16.dp),
                 colors = fieldColors(),
             )
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), modifier = Modifier.padding(bottom = 28.dp)) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(bottom = 12.dp),
+            ) {
                 Button(
                     onClick = {
                         if (game.title.isBlank()) onNeedTitle()
