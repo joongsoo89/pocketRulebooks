@@ -6,6 +6,7 @@ import androidx.lifecycle.viewModelScope
 import com.pocketrulebooks.app.data.Game
 import com.pocketrulebooks.app.data.GameStore
 import com.pocketrulebooks.app.data.RulebookCodec
+import com.pocketrulebooks.app.data.migrated
 import com.pocketrulebooks.app.ui.Lang
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +43,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun upsert(game: Game) {
-        val next = game.copy(updatedAt = System.currentTimeMillis())
+        val next = game.migrated().copy(updatedAt = System.currentTimeMillis())
         _games.update { current ->
             val without = current.filterNot { it.id == next.id }
             listOf(next) + without

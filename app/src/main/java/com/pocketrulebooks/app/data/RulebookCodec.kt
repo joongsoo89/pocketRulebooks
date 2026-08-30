@@ -4,19 +4,22 @@ object RulebookCodec {
     private const val MAGIC = "POCKET_RULEBOOKS/1"
 
     fun encode(game: Game): String {
+        val normalized = game.migrated()
         val body = buildString {
             appendLine(MAGIC)
-            appendLine("id: ${game.id}")
-            appendLine("emoji: ${game.emoji}")
-            appendLine("title: ${game.title}")
-            appendLine("players: ${game.players}")
-            appendLine("playTime: ${game.playTime}")
+            appendLine("id: ${normalized.id}")
+            appendLine("emoji: ${normalized.emoji}")
+            appendLine("title: ${normalized.title}")
+            appendLine("players: ${normalized.players}")
+            appendLine("playTime: ${normalized.playTime}")
             appendLine()
-            appendSection("overview", game.overview)
-            appendSection("setup", game.setup)
-            appendSection("play", game.play)
-            appendSection("end", game.ending)
-            appendSection("extra", game.extra)
+            appendSection("overview", normalized.overview)
+            appendSection("setup", normalized.setup)
+            appendSection("play", normalized.play)
+            appendSection("end", normalized.ending)
+            for (tab in normalized.customTabs) {
+                appendSection("tab:${tab.title.ifBlank { "untitled" }}", tab.body)
+            }
         }
         return body.trimEnd() + "\n"
     }
@@ -37,26 +40,32 @@ object RulebookCodec {
             }
             .toMap()
 
-        val sections = linkedMapOf<String, StringBuilder>()
-        var current: String? = null
+        data class Block(val key: String, val title: String, val body: StringBuilder = StringBuilder())
+        val blocks = mutableListOf<Block>()
+        var current: Block? = null
         for (line in lines.drop(firstSection)) {
             val marker = parseMarker(line)
             if (marker != null) {
-                current = marker
-                sections.putIfAbsent(marker, StringBuilder())
+                current = Block(marker.first, marker.second)
+                blocks += current
             } else if (current != null) {
-                val buf = sections.getValue(current)
-                if (buf.isNotEmpty()) buf.append('\n')
-                buf.append(line)
+                if (current.body.isNotEmpty()) current.body.append('\n')
+                current.body.append(line)
             }
         }
 
         fun sec(vararg keys: String): String {
-            val found = keys.firstNotNullOfOrNull { key ->
-                sections[key]?.toString()?.trim()
-            }
-            return found.orEmpty()
+            return blocks.firstOrNull { it.key in keys }?.body?.toString()?.trim().orEmpty()
         }
+
+        val extraBody = sec("extra")
+        val customTabs = blocks
+            .filter { it.key == "custom" }
+            .map { CustomTab(title = it.title, body = it.body.toString().trim()) }
+            .let { tabs ->
+                if (extraBody.isBlank()) tabs
+                else tabs + CustomTab(title = "기타", body = extraBody)
+            }
 
         return Game(
             id = header["id"]?.ifBlank { null } ?: fallbackId ?: java.util.UUID.randomUUID().toString(),
@@ -64,12 +73,13 @@ object RulebookCodec {
             title = header["title"].orEmpty(),
             players = header["players"] ?: header["player"].orEmpty(),
             playTime = header["playtime"] ?: header["time"].orEmpty(),
-            overview = sec("overview", "게임개요", "개요", "目標", "概要"),
-            setup = sec("setup", "게임준비", "준비", "準備"),
-            play = sec("play", "게임진행", "진행", "進行"),
-            ending = sec("end", "ending", "게임종료", "종료", "終了"),
-            extra = sec("extra", "기타", "その他", "other"),
-        )
+            overview = sec("overview"),
+            setup = sec("setup"),
+            play = sec("play"),
+            ending = sec("end"),
+            extra = "",
+            customTabs = customTabs,
+        ).migrated()
     }
 
     private fun StringBuilder.appendSection(key: String, value: String) {
@@ -78,19 +88,27 @@ object RulebookCodec {
         appendLine()
     }
 
-    private fun parseMarker(line: String): String? {
+    private fun parseMarker(line: String): Pair<String, String>? {
         val trimmed = line.trim()
         if (!trimmed.startsWith("===") || !trimmed.endsWith("===")) return null
-        val inner = trimmed.removePrefix("===").removeSuffix("===").trim().lowercase()
+        val inner = trimmed.removePrefix("===").removeSuffix("===").trim()
         if (inner.isEmpty()) return null
         val primary = inner.split("|").first().trim()
-        return when (primary) {
-            "게임개요", "개요", "overview", "goal", "目標", "概要" -> "overview"
-            "게임준비", "준비", "setup", "準備" -> "setup"
-            "게임진행", "진행", "play", "進行" -> "play"
-            "게임종료", "종료", "end", "ending", "scoring", "終了" -> "end"
-            "기타", "extra", "other", "その他" -> "extra"
-            else -> primary
+        val lower = primary.lowercase()
+        val key = when {
+            lower in setOf("게임개요", "개요", "overview", "goal", "目標", "概要") -> "overview"
+            lower in setOf("게임준비", "준비", "setup", "準備") -> "setup"
+            lower in setOf("게임진행", "진행", "play", "進行") -> "play"
+            lower in setOf("게임종료", "종료", "end", "ending", "scoring", "終了") -> "end"
+            lower in setOf("기타", "extra", "other", "その他") -> "extra"
+            lower.startsWith("tab:") -> "custom"
+            else -> "custom"
         }
+        val title = if (key == "custom") {
+            primary.removePrefix("tab:").removePrefix("TAB:").trim().ifBlank { primary }
+        } else {
+            primary
+        }
+        return key to title
     }
 }

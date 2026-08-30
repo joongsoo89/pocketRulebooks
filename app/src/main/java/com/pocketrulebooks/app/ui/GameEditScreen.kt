@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -30,9 +31,16 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.unit.dp
 import com.pocketrulebooks.app.data.Game
 import com.pocketrulebooks.app.data.RuleSection
+import com.pocketrulebooks.app.data.SelectedTab
+import com.pocketrulebooks.app.data.addCustomTab
+import com.pocketrulebooks.app.data.hasTab
 import com.pocketrulebooks.app.data.randomEmoji
-import com.pocketrulebooks.app.data.sectionText
-import com.pocketrulebooks.app.data.withSection
+import com.pocketrulebooks.app.data.removeCustomTab
+import com.pocketrulebooks.app.data.tabFromKey
+import com.pocketrulebooks.app.data.tabText
+import com.pocketrulebooks.app.data.storageKey
+import com.pocketrulebooks.app.data.withCustomTitle
+import com.pocketrulebooks.app.data.withTabText
 import com.pocketrulebooks.app.ui.theme.Burgundy
 import com.pocketrulebooks.app.ui.theme.Cream
 import com.pocketrulebooks.app.ui.theme.Ink
@@ -52,9 +60,20 @@ fun GameEditScreen(
 ) {
     val t = stringsForLang(lang)
     var game by remember(initial.id) { mutableStateOf(initial) }
-    var section by rememberSaveable { mutableStateOf(RuleSection.Overview) }
+    var tabKey by rememberSaveable { mutableStateOf(SelectedTab.Builtin(RuleSection.Overview).storageKey()) }
     var bodyFocused by remember { mutableStateOf(false) }
-    val hint = t.tabHint.getValue(section)
+    var showAddTab by remember { mutableStateOf(false) }
+    var confirmDeleteTab by remember { mutableStateOf(false) }
+    val selected = run {
+        val current = tabFromKey(tabKey)
+        if (game.hasTab(current)) current else SelectedTab.Builtin(RuleSection.Overview)
+    }
+    val customSelected = selected as? SelectedTab.Custom
+    val hint = (selected as? SelectedTab.Builtin)?.let { t.tabHint[it.section].orEmpty() }.orEmpty()
+    val heading = when (selected) {
+        is SelectedTab.Builtin -> t.tabFull.getValue(selected.section)
+        is SelectedTab.Custom -> game.customTabs.find { it.id == selected.id }?.title.orEmpty()
+    }
 
     Scaffold(
         containerColor = Paper,
@@ -112,17 +131,38 @@ fun GameEditScreen(
                 }
             }
 
-            SectionTabBar(lang, section, onChange = { section = it })
+            SectionTabBar(
+                lang = lang,
+                selected = selected,
+                customTabs = game.customTabs,
+                showAdd = true,
+                onSelect = { tabKey = it.storageKey() },
+                onAdd = { showAddTab = true },
+            )
             Row(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalAlignment = Alignment.Bottom,
+                verticalAlignment = Alignment.CenterVertically,
             ) {
-                Text(t.tabFull.getValue(section), color = Ink)
-                if (hint.isNotBlank()) Text("($hint)", color = Muted)
+                if (customSelected != null) {
+                    OutlinedTextField(
+                        value = heading,
+                        onValueChange = { game = game.withCustomTitle(customSelected.id, it) },
+                        modifier = Modifier.weight(1f),
+                        singleLine = true,
+                        placeholder = { Text(t.newTabTitle) },
+                        colors = fieldColors(),
+                    )
+                    TextButton(onClick = { confirmDeleteTab = true }) {
+                        Text(t.deleteTab, color = Burgundy)
+                    }
+                } else {
+                    Text(heading, color = Ink)
+                    if (hint.isNotBlank()) Text("($hint)", color = Muted)
+                }
             }
             OutlinedTextField(
-                value = game.sectionText(section),
-                onValueChange = { game = game.withSection(section, it) },
+                value = game.tabText(selected),
+                onValueChange = { game = game.withTabText(selected, it) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f)
@@ -145,6 +185,36 @@ fun GameEditScreen(
                 TextButton(onClick = onCancel) { Text(t.cancel, color = Burgundy) }
             }
         }
+    }
+
+    if (showAddTab) {
+        AddTabDialog(
+            lang = lang,
+            onConfirm = { title ->
+                val (next, tab) = game.addCustomTab(title)
+                game = next
+                tabKey = SelectedTab.Custom(tab.id).storageKey()
+                showAddTab = false
+            },
+            onDismiss = { showAddTab = false },
+        )
+    }
+    if (confirmDeleteTab && customSelected != null) {
+        AlertDialog(
+            onDismissRequest = { confirmDeleteTab = false },
+            title = { Text(t.deleteTab) },
+            text = { Text(t.confirmDeleteTab) },
+            confirmButton = {
+                TextButton(onClick = {
+                    game = game.removeCustomTab(customSelected.id)
+                    tabKey = SelectedTab.Builtin(RuleSection.Overview).storageKey()
+                    confirmDeleteTab = false
+                }) { Text(t.delete, color = Burgundy) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmDeleteTab = false }) { Text(t.cancel) }
+            },
+        )
     }
 }
 

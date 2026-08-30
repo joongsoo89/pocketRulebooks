@@ -23,6 +23,7 @@ class GameStore(context: Context) {
             if (!file.exists()) return@withContext emptyList()
             runCatching {
                 json.decodeFromString<List<Game>>(file.readText(Charsets.UTF_8))
+                    .map { it.migrated() }
                     .sortedByDescending { it.updatedAt }
             }.getOrDefault(emptyList())
         }

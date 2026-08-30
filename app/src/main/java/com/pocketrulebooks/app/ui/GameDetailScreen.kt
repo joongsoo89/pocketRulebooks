@@ -26,6 +26,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -34,7 +35,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pocketrulebooks.app.data.Game
 import com.pocketrulebooks.app.data.RuleSection
-import com.pocketrulebooks.app.data.sectionText
+import com.pocketrulebooks.app.data.SelectedTab
+import com.pocketrulebooks.app.data.addCustomTab
+import com.pocketrulebooks.app.data.hasTab
+import com.pocketrulebooks.app.data.storageKey
+import com.pocketrulebooks.app.data.tabFromKey
+import com.pocketrulebooks.app.data.tabText
 import com.pocketrulebooks.app.ui.theme.Burgundy
 import com.pocketrulebooks.app.ui.theme.Cream
 import com.pocketrulebooks.app.ui.theme.Ink
@@ -52,12 +58,22 @@ fun GameDetailScreen(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onLang: (Lang) -> Unit,
+    onUpdate: (Game) -> Unit,
 ) {
     val t = stringsForLang(lang)
-    var section by rememberSaveable { mutableStateOf(RuleSection.Overview) }
+    var tabKey by rememberSaveable { mutableStateOf(SelectedTab.Builtin(RuleSection.Overview).storageKey()) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    val hint = t.tabHint.getValue(section)
-    val body = game.sectionText(section).ifBlank { t.noContent }
+    var showAddTab by remember { mutableStateOf(false) }
+    val selected = run {
+        val current = tabFromKey(tabKey)
+        if (game.hasTab(current)) current else SelectedTab.Builtin(RuleSection.Overview)
+    }
+    val hint = (selected as? SelectedTab.Builtin)?.let { t.tabHint[it.section].orEmpty() }.orEmpty()
+    val heading = when (selected) {
+        is SelectedTab.Builtin -> t.tabFull.getValue(selected.section)
+        is SelectedTab.Custom -> game.customTabs.find { it.id == selected.id }?.title.orEmpty()
+    }
+    val body = game.tabText(selected).ifBlank { t.noContent }
     val bits = listOf(game.players, game.playTime).filter { it.isNotBlank() }
 
     Scaffold(
@@ -96,11 +112,18 @@ fun GameDetailScreen(
                             if (bits.isNotEmpty()) Text(bits.joinToString(" · "), color = Muted)
                         }
                     }
-                    SectionTabBar(lang, section, onChange = { section = it })
+                    SectionTabBar(
+                        lang = lang,
+                        selected = selected,
+                        customTabs = game.customTabs,
+                        showAdd = true,
+                        onSelect = { tabKey = it.storageKey() },
+                        onAdd = { showAddTab = true },
+                    )
                 }
             }
             Row(verticalAlignment = Alignment.Bottom, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Text(t.tabFull.getValue(section), color = Ink, fontSize = 22.sp)
+                Text(heading.ifBlank { t.newTabTitle }, color = Ink, fontSize = 22.sp)
                 if (hint.isNotBlank()) Text("($hint)", color = Muted)
             }
             Card(
@@ -130,6 +153,18 @@ fun GameDetailScreen(
         }
     }
 
+    if (showAddTab) {
+        AddTabDialog(
+            lang = lang,
+            onConfirm = { title ->
+                val (next, tab) = game.addCustomTab(title)
+                onUpdate(next)
+                tabKey = SelectedTab.Custom(tab.id).storageKey()
+                showAddTab = false
+            },
+            onDismiss = { showAddTab = false },
+        )
+    }
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },
