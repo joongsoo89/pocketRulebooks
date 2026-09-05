@@ -8,10 +8,10 @@ object RulebookCodec {
         val body = buildString {
             appendLine(MAGIC)
             appendLine("id: ${normalized.id}")
-            appendLine("emoji: ${normalized.emoji}")
             appendLine("title: ${normalized.title}")
             appendLine("players: ${normalized.players}")
             appendLine("playTime: ${normalized.playTime}")
+            appendLine("labels: ${normalized.labels.joinToString(", ")}")
             appendLine()
             appendSection("overview", normalized.overview)
             appendSection("setup", normalized.setup)
@@ -69,7 +69,8 @@ object RulebookCodec {
 
         return Game(
             id = header["id"]?.ifBlank { null } ?: fallbackId ?: java.util.UUID.randomUUID().toString(),
-            emoji = header["emoji"]?.ifBlank { null } ?: randomEmoji(),
+            emoji = header["emoji"].orEmpty(),
+            labels = parseLabels(header["labels"].orEmpty()),
             title = header["title"].orEmpty(),
             players = header["players"] ?: header["player"].orEmpty(),
             playTime = header["playtime"] ?: header["time"].orEmpty(),

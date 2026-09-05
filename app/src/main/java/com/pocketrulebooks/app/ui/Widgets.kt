@@ -1,9 +1,15 @@
 package com.pocketrulebooks.app.ui
 
+import android.graphics.BitmapFactory
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -13,6 +19,8 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -21,15 +29,22 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.asImageBitmap
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.pocketrulebooks.app.data.CoverStore
 import com.pocketrulebooks.app.data.CustomTab
 import com.pocketrulebooks.app.data.RuleSection
 import com.pocketrulebooks.app.data.SelectedTab
 import com.pocketrulebooks.app.ui.theme.Burgundy
 import com.pocketrulebooks.app.ui.theme.Cream
+import com.pocketrulebooks.app.ui.theme.Ink
 import com.pocketrulebooks.app.ui.theme.Muted
 
 @Composable
@@ -157,5 +172,74 @@ fun AddTabDialog(
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(t.cancel) }
         },
+    )
+}
+
+@Composable
+fun CoverThumb(
+    gameId: String,
+    photoFileName: String,
+    modifier: Modifier = Modifier,
+    placeholderSize: TextUnit = 22.sp,
+) {
+    val context = LocalContext.current
+    val file = remember(gameId) { CoverStore(context).fileFor(gameId) }
+    val bitmap = remember(file.path, file.lastModified(), photoFileName) {
+        if (file.exists()) BitmapFactory.decodeFile(file.absolutePath) else null
+    }
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(androidx.compose.ui.graphics.Color(0xFFF4E6D3)),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = null,
+                modifier = Modifier.fillMaxSize(),
+                contentScale = ContentScale.Crop,
+            )
+        } else {
+            Text("🎲", fontSize = placeholderSize)
+        }
+    }
+}
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+fun LabelChips(
+    labels: List<String>,
+    onRemove: ((String) -> Unit)? = null,
+) {
+    if (labels.isEmpty()) return
+    FlowRow(
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        verticalArrangement = Arrangement.spacedBy(6.dp),
+    ) {
+        labels.forEach { label ->
+            FilterChip(
+                selected = true,
+                onClick = { onRemove?.invoke(label) },
+                label = { Text(if (onRemove != null) "$label  ×" else label) },
+                colors = FilterChipDefaults.filterChipColors(
+                    selectedContainerColor = Cream,
+                    selectedLabelColor = Burgundy,
+                ),
+            )
+        }
+    }
+}
+
+@Composable
+fun CreditLine(text: String) {
+    Text(
+        text = text,
+        color = Muted,
+        fontSize = 12.sp,
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 12.dp),
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
     )
 }

@@ -3,6 +3,7 @@ package com.pocketrulebooks.app
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.pocketrulebooks.app.data.CoverStore
 import com.pocketrulebooks.app.data.Game
 import com.pocketrulebooks.app.data.GameStore
 import com.pocketrulebooks.app.data.RulebookCodec
@@ -16,6 +17,7 @@ import kotlinx.coroutines.launch
 
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val store = GameStore(application)
+    private val covers = CoverStore(application)
     private val prefs = application.getSharedPreferences("pocket_rulebooks", 0)
 
     private val _games = MutableStateFlow<List<Game>>(emptyList())
@@ -52,6 +54,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun delete(id: String) {
+        covers.delete(id)
         _games.update { it.filterNot { game -> game.id == id } }
         persist()
     }
@@ -66,12 +69,21 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 parsed.copy(
                     id = existing.id,
                     createdAt = existing.createdAt,
-                    emoji = parsed.emoji.ifBlank { existing.emoji },
+                    photoFileName = existing.photoFileName,
+                    labels = parsed.labels.ifEmpty { existing.labels },
                     title = parsed.title.ifBlank { existing.title },
                 )
             } else {
                 val byId = _games.value.find { it.id == parsed.id }
-                if (byId != null) parsed.copy(createdAt = byId.createdAt) else parsed
+                if (byId != null) {
+                    parsed.copy(
+                        createdAt = byId.createdAt,
+                        photoFileName = byId.photoFileName,
+                        labels = parsed.labels.ifEmpty { byId.labels },
+                    )
+                } else {
+                    parsed
+                }
             }
             if (merged.title.isBlank()) {
                 _message.value = "empty-title"

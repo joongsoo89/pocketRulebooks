@@ -13,7 +13,9 @@ data class CustomTab(
 @Serializable
 data class Game(
     val id: String = UUID.randomUUID().toString(),
-    val emoji: String = randomEmoji(),
+    val emoji: String = "",
+    val photoFileName: String = "",
+    val labels: List<String> = emptyList(),
     val title: String = "",
     val players: String = "",
     val playTime: String = "",
@@ -116,9 +118,23 @@ fun Game.hasTab(tab: SelectedTab): Boolean = when (tab) {
     is SelectedTab.Custom -> customTabs.any { it.id == tab.id }
 }
 
-private val EMOJIS = listOf("🎲", "♟️", "🃏", "🧩", "🎯", "🪙", "🏰", "🚂", "🐉", "🚀", "🧙", "🦊")
+fun parseLabels(raw: String): List<String> =
+    raw.split(',', '，', ';', '、')
+        .map { it.trim() }
+        .filter { it.isNotEmpty() }
+        .distinctBy { it.lowercase() }
 
-fun randomEmoji(): String = EMOJIS.random()
+fun Game.withLabels(raw: List<String>): Game = copy(
+    labels = parseLabels(raw.joinToString(",")),
+    updatedAt = System.currentTimeMillis(),
+)
+
+fun Game.matches(query: String, label: String): Boolean {
+    if (label.isNotBlank() && labels.none { it.equals(label, ignoreCase = true) }) return false
+    if (query.isBlank()) return true
+    val hay = listOf(title, players, playTime, overview, labels.joinToString(" ")).joinToString(" ")
+    return hay.contains(query, ignoreCase = true)
+}
 
 fun Game.fileName(): String {
     val base = title.trim().ifBlank { "rulebook" }

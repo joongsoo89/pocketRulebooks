@@ -184,7 +184,6 @@ private fun PocketApp(
                         onExport = { startExport(game) },
                         onImport = { startImport(game.id) },
                         onLang = viewModel::setLang,
-                        onUpdate = viewModel::upsert,
                     )
                 }
             }

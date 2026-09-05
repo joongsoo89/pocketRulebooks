@@ -1,6 +1,5 @@
 package com.pocketrulebooks.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -26,7 +25,6 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -36,7 +34,6 @@ import androidx.compose.ui.unit.sp
 import com.pocketrulebooks.app.data.Game
 import com.pocketrulebooks.app.data.RuleSection
 import com.pocketrulebooks.app.data.SelectedTab
-import com.pocketrulebooks.app.data.addCustomTab
 import com.pocketrulebooks.app.data.hasTab
 import com.pocketrulebooks.app.data.storageKey
 import com.pocketrulebooks.app.data.tabFromKey
@@ -58,12 +55,10 @@ fun GameDetailScreen(
     onExport: () -> Unit,
     onImport: () -> Unit,
     onLang: (Lang) -> Unit,
-    onUpdate: (Game) -> Unit,
 ) {
     val t = stringsForLang(lang)
     var tabKey by rememberSaveable { mutableStateOf(SelectedTab.Builtin(RuleSection.Overview).storageKey()) }
     var confirmDelete by rememberSaveable { mutableStateOf(false) }
-    var showAddTab by remember { mutableStateOf(false) }
     val selected = run {
         val current = tabFromKey(tabKey)
         if (game.hasTab(current)) current else SelectedTab.Builtin(RuleSection.Overview)
@@ -101,24 +96,20 @@ fun GameDetailScreen(
             ) {
                 Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(
-                            Modifier
-                                .size(56.dp)
-                                .background(androidx.compose.ui.graphics.Color(0xFFF4E6D3), RoundedCornerShape(16.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) { Text(game.emoji, fontSize = 26.sp) }
+                        CoverThumb(game.id, game.photoFileName, Modifier.size(72.dp), placeholderSize = 28.sp)
                         Column {
                             Text(game.title, color = Ink, fontSize = 20.sp)
                             if (bits.isNotEmpty()) Text(bits.joinToString(" · "), color = Muted)
                         }
                     }
+                    LabelChips(game.labels)
                     SectionTabBar(
                         lang = lang,
                         selected = selected,
                         customTabs = game.customTabs,
-                        showAdd = true,
+                        showAdd = false,
                         onSelect = { tabKey = it.storageKey() },
-                        onAdd = { showAddTab = true },
+                        onAdd = {},
                     )
                 }
             }
@@ -149,22 +140,11 @@ fun GameDetailScreen(
                 TextButton(onClick = onImport) { Text(t.importIntoGame, color = Burgundy) }
                 TextButton(onClick = { confirmDelete = true }) { Text(t.delete, color = Burgundy) }
             }
-            Box(Modifier.padding(bottom = 24.dp))
+            CreditLine(t.credit)
+            Box(Modifier.padding(bottom = 12.dp))
         }
     }
 
-    if (showAddTab) {
-        AddTabDialog(
-            lang = lang,
-            onConfirm = { title ->
-                val (next, tab) = game.addCustomTab(title)
-                onUpdate(next)
-                tabKey = SelectedTab.Custom(tab.id).storageKey()
-                showAddTab = false
-            },
-            onDismiss = { showAddTab = false },
-        )
-    }
     if (confirmDelete) {
         AlertDialog(
             onDismissRequest = { confirmDelete = false },

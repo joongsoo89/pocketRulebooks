@@ -1,7 +1,7 @@
 package com.pocketrulebooks.app.ui
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -15,10 +15,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
@@ -38,8 +41,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pocketrulebooks.app.data.Game
+import com.pocketrulebooks.app.data.matches
 import com.pocketrulebooks.app.ui.theme.Burgundy
-import com.pocketrulebooks.app.ui.theme.BurgundySoft
 import com.pocketrulebooks.app.ui.theme.Cream
 import com.pocketrulebooks.app.ui.theme.Ink
 import com.pocketrulebooks.app.ui.theme.Line
@@ -58,10 +61,9 @@ fun GameListScreen(
 ) {
     val t = stringsForLang(lang)
     var query by rememberSaveable { mutableStateOf("") }
-    val filtered = games.filter { game ->
-        val hay = listOf(game.title, game.players, game.playTime, game.overview).joinToString(" ")
-        query.isBlank() || hay.contains(query, ignoreCase = true)
-    }
+    var selectedLabel by rememberSaveable { mutableStateOf("") }
+    val allLabels = games.flatMap { it.labels }.distinctBy { it.lowercase() }.sortedBy { it.lowercase() }
+    val filtered = games.filter { it.matches(query, selectedLabel) }
 
     Scaffold(
         containerColor = Paper,
@@ -98,16 +100,43 @@ fun GameListScreen(
                     unfocusedBorderColor = Line,
                 ),
             )
+            if (allLabels.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .horizontalScroll(rememberScrollState())
+                        .padding(top = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    FilterChip(
+                        selected = selectedLabel.isBlank(),
+                        onClick = { selectedLabel = "" },
+                        label = { Text(t.allLabels) },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = Burgundy,
+                            selectedLabelColor = Cream,
+                        ),
+                    )
+                    allLabels.forEach { label ->
+                        FilterChip(
+                            selected = selectedLabel.equals(label, ignoreCase = true),
+                            onClick = {
+                                selectedLabel = if (selectedLabel.equals(label, ignoreCase = true)) "" else label
+                            },
+                            label = { Text(label) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = Burgundy,
+                                selectedLabelColor = Cream,
+                            ),
+                        )
+                    }
+                }
+            }
             TextButton(onClick = onImport) { Text(t.importFile, color = Burgundy) }
             if (games.isEmpty()) {
-                Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) {
                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                        Box(
-                            Modifier
-                                .size(88.dp)
-                                .background(BurgundySoft, RoundedCornerShape(24.dp)),
-                            contentAlignment = Alignment.Center,
-                        ) { Text("📖", fontSize = 36.sp) }
+                        CoverThumb("empty", "", Modifier.size(88.dp), placeholderSize = 36.sp)
                         Spacer(Modifier.height(12.dp))
                         Text(t.emptyTitle, color = Ink, fontSize = 20.sp)
                         Spacer(Modifier.height(6.dp))
@@ -116,6 +145,7 @@ fun GameListScreen(
                 }
             } else {
                 LazyColumn(
+                    modifier = Modifier.weight(1f),
                     contentPadding = PaddingValues(bottom = 96.dp),
                     verticalArrangement = Arrangement.spacedBy(12.dp),
                 ) {
@@ -124,6 +154,7 @@ fun GameListScreen(
                     }
                 }
             }
+            CreditLine(t.credit)
         }
     }
 }
@@ -143,17 +174,15 @@ private fun GameCard(game: Game, onClick: () -> Unit) {
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Box(
-                Modifier
-                    .size(56.dp)
-                    .background(androidx.compose.ui.graphics.Color(0xFFF4E6D3), RoundedCornerShape(16.dp)),
-                contentAlignment = Alignment.Center,
-            ) { Text(game.emoji, fontSize = 26.sp) }
+            CoverThumb(game.id, game.photoFileName, Modifier.size(56.dp), placeholderSize = 26.sp)
             Column(Modifier.weight(1f)) {
                 Text(game.title.ifBlank { "—" }, color = Ink, fontSize = 18.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 val bits = listOf(game.players, game.playTime).filter { it.isNotBlank() }
                 if (bits.isNotEmpty()) {
                     Text(bits.joinToString(" · "), color = Muted, fontSize = 13.sp)
+                }
+                if (game.labels.isNotEmpty()) {
+                    Text(game.labels.joinToString(" · "), color = Burgundy, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
                 }
                 if (game.overview.isNotBlank()) {
                     Text(game.overview, color = Muted, fontSize = 13.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)

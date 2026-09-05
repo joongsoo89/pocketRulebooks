@@ -1,5 +1,7 @@
 package com.pocketrulebooks.app.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -7,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -28,18 +31,22 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.pocketrulebooks.app.data.CoverStore
 import com.pocketrulebooks.app.data.Game
 import com.pocketrulebooks.app.data.RuleSection
 import com.pocketrulebooks.app.data.SelectedTab
 import com.pocketrulebooks.app.data.addCustomTab
 import com.pocketrulebooks.app.data.hasTab
-import com.pocketrulebooks.app.data.randomEmoji
+import com.pocketrulebooks.app.data.parseLabels
 import com.pocketrulebooks.app.data.removeCustomTab
+import com.pocketrulebooks.app.data.storageKey
 import com.pocketrulebooks.app.data.tabFromKey
 import com.pocketrulebooks.app.data.tabText
-import com.pocketrulebooks.app.data.storageKey
 import com.pocketrulebooks.app.data.withCustomTitle
+import com.pocketrulebooks.app.data.withLabels
 import com.pocketrulebooks.app.data.withTabText
 import com.pocketrulebooks.app.ui.theme.Burgundy
 import com.pocketrulebooks.app.ui.theme.Cream
@@ -59,11 +66,15 @@ fun GameEditScreen(
     onNeedTitle: () -> Unit,
 ) {
     val t = stringsForLang(lang)
+    val context = LocalContext.current
+    val covers = remember { CoverStore(context) }
     var game by remember(initial.id) { mutableStateOf(initial) }
     var tabKey by rememberSaveable { mutableStateOf(SelectedTab.Builtin(RuleSection.Overview).storageKey()) }
     var bodyFocused by remember { mutableStateOf(false) }
     var showAddTab by remember { mutableStateOf(false) }
     var confirmDeleteTab by remember { mutableStateOf(false) }
+    var labelDraft by remember { mutableStateOf("") }
+    var photoTick by remember { mutableStateOf(0) }
     val selected = run {
         val current = tabFromKey(tabKey)
         if (game.hasTab(current)) current else SelectedTab.Builtin(RuleSection.Overview)
@@ -73,6 +84,20 @@ fun GameEditScreen(
     val heading = when (selected) {
         is SelectedTab.Builtin -> t.tabFull.getValue(selected.section)
         is SelectedTab.Custom -> game.customTabs.find { it.id == selected.id }?.title.orEmpty()
+    }
+    val pickPhoto = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        if (covers.saveFromUri(game.id, uri)) {
+            game = game.copy(photoFileName = "${game.id}.jpg", emoji = "")
+            photoTick += 1
+        }
+    }
+
+    fun addDraftLabels() {
+        val extra = parseLabels(labelDraft)
+        if (extra.isEmpty()) return
+        game = game.withLabels(game.labels + extra)
+        labelDraft = ""
     }
 
     Scaffold(
@@ -105,21 +130,32 @@ fun GameEditScreen(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
                 ) {
-                    Button(
-                        onClick = { game = game.copy(emoji = randomEmoji()) },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Cream,
-                            contentColor = Ink,
-                        ),
-                        shape = RoundedCornerShape(16.dp),
-                    ) { Text(game.emoji) }
-                    Field(
-                        label = t.title,
-                        value = game.title,
-                        hint = t.titleHint,
-                        modifier = Modifier.weight(1f),
-                        onChange = { game = game.copy(title = it) },
+                    CoverThumb(
+                        gameId = game.id,
+                        photoFileName = "${game.photoFileName}-$photoTick",
+                        modifier = Modifier.size(72.dp),
+                        placeholderSize = 28.sp,
                     )
+                    Column(Modifier.weight(1f)) {
+                        Field(
+                            label = t.title,
+                            value = game.title,
+                            hint = t.titleHint,
+                            onChange = { game = game.copy(title = it) },
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(onClick = { pickPhoto.launch("image/*") }) {
+                                Text(if (game.photoFileName.isBlank()) t.addPhoto else t.changePhoto, color = Burgundy)
+                            }
+                            if (game.photoFileName.isNotBlank() || covers.hasCover(game.id)) {
+                                TextButton(onClick = {
+                                    covers.delete(game.id)
+                                    game = game.copy(photoFileName = "")
+                                    photoTick += 1
+                                }) { Text(t.removePhoto, color = Burgundy) }
+                            }
+                        }
+                    }
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                     Field(t.players, game.players, t.playersHint, Modifier.weight(1f)) {
@@ -128,6 +164,25 @@ fun GameEditScreen(
                     Field(t.playTime, game.playTime, t.playTimeHint, Modifier.weight(1f)) {
                         game = game.copy(playTime = it)
                     }
+                }
+                Text(t.labels, color = Muted)
+                LabelChips(game.labels, onRemove = { name ->
+                    game = game.copy(labels = game.labels.filterNot { it.equals(name, ignoreCase = true) })
+                })
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    OutlinedTextField(
+                        value = labelDraft,
+                        onValueChange = { labelDraft = it },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text(t.labelsHint) },
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = fieldColors(),
+                    )
+                    TextButton(onClick = { addDraftLabels() }) { Text(t.addLabel, color = Burgundy) }
                 }
             }
 
@@ -177,6 +232,7 @@ fun GameEditScreen(
             ) {
                 Button(
                     onClick = {
+                        addDraftLabels()
                         if (game.title.isBlank()) onNeedTitle()
                         else onSave(game.copy(updatedAt = System.currentTimeMillis()))
                     },
