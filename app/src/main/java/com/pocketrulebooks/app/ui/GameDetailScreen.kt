@@ -29,6 +29,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.pocketrulebooks.app.data.Game
@@ -131,8 +132,11 @@ fun GameDetailScreen(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                Button(onClick = onEdit, colors = ButtonDefaults.buttonColors(containerColor = Burgundy)) {
-                    Text(t.edit)
+                Button(
+                    onClick = onEdit,
+                    colors = ButtonDefaults.buttonColors(containerColor = Burgundy, contentColor = Color.White),
+                ) {
+                    Text(t.edit, color = Color.White)
                 }
                 TextButton(onClick = onExport) { Text(t.exportFile, color = Burgundy) }
             }

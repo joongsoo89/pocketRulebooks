@@ -37,6 +37,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -75,8 +76,8 @@ fun GameListScreen(
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = onAdd, containerColor = Burgundy, contentColor = Cream) {
-                Text("+ ${t.add}", modifier = Modifier.padding(horizontal = 8.dp))
+            FloatingActionButton(onClick = onAdd, containerColor = Burgundy, contentColor = Color.White) {
+                Text("+ ${t.add}", modifier = Modifier.padding(horizontal = 8.dp), color = Color.White)
             }
         },
     ) { padding ->
@@ -114,7 +115,7 @@ fun GameListScreen(
                         label = { Text(t.allLabels) },
                         colors = FilterChipDefaults.filterChipColors(
                             selectedContainerColor = Burgundy,
-                            selectedLabelColor = Cream,
+                            selectedLabelColor = Color.White,
                         ),
                     )
                     allLabels.forEach { label ->
@@ -126,7 +127,7 @@ fun GameListScreen(
                             label = { Text(label) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = Burgundy,
-                                selectedLabelColor = Cream,
+                                selectedLabelColor = Color.White,
                             ),
                         )
                     }

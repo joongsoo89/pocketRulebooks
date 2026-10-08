@@ -21,7 +21,7 @@ val Sage = Color(0xFF2F5D4A)
 
 private val Colors = lightColorScheme(
     primary = Burgundy,
-    onPrimary = Cream,
+    onPrimary = Color.White,
     secondary = Sage,
     onSecondary = Cream,
     background = Paper,
@@ -69,7 +69,6 @@ private val Type = Typography(
         fontFamily = FontFamily.SansSerif,
         fontWeight = FontWeight.Medium,
         fontSize = 14.sp,
-        color = Ink,
     ),
 )
 
